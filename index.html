@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <title>Machine Learning Server</title>
+    <h1> Machine Learning Server</h1>
+</head>
+<body style="text-align: center; padding: 200px 200px;">
+	<form>
+		<hr>
+        <h3 style="text-align: left;">Step 1:</h1>
+		<h4 style="margin-top: -40px; margin-left: 64px;">Upload training data: 
+            <input type="file" name="trainFile" id="file1"><br></h4>
+		<h4 style="margin-left: 118px;">Upload testing data: 
+            <input type="file" name="testFile" id="file2">
+            <input style="margin-left: 5px;" type="button" id="upload" value="Upload"></input></h4>
+        <div id="fileInfo">Files (.csv .txt):  Data should only contain numbers. The last column is ground truth and the other columns are all features. </div><hr>
+    </form>
+    <form>
+        <h3 style="text-align: left;">Step 2:</h3>
+		<h4 style="margin-top: -40px;">Machine learning algorithm: 
+		<select id="mlInfo">
+		  <option value="logistic_regression">Logistic Regression</option>
+          <option value="knn">KNN</option>
+		  <option value="svm">SVM</option>
+          <option value="random_forest">Random Forest</option>
+		</select></h4>           
+        <input type="button" class="myButton" value="Submit" id="submit"></input>
+    </form>       
+    <hr><br>
+    <div id="resultInfo">Result:</div> 
+    <br>
+    <a href="results/model.sav" download="model.sav" ><input id="download" class="myButton" style="visibility: hidden; background-color: gainsboro; font-size: small; border-radius: 5px;" type="button" value="Download Model"></input></a>
+    <div><span id='imgTrn'></span><span style="width: 100px"></span><span id='imgTst'></span></div>
+    <script type="text/javascript">    
+       $(function () {
+          $("#upload").click(function () {
+          	var file1 = document.getElementById('file1').files[0];        
+            var file2 = document.getElementById('file2').files[0];
+            //console.log(file1.name);
+            //console.log(file1.size);
+    	   	var formData = new FormData();
+    	   	formData.append('trainFile',file1);
+    	    formData.append('testFile',file2);
+    		$.ajax({
+    	            url:"upload.php",
+                    type:"post",
+                    data:formData,
+                    processData:false,
+                    contentType:false,
+                    cache:false, 
+                    success:function(msg){
+                    	document.getElementById('fileInfo').innerText="Files: \r"+"Your training data: "+file1.name+"\r Your testing data: "+file2.name;
+                    },
+                    error:function(e){
+                        console.log("failed..");
+                    }
+                });        
+            })
+        })
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $("#submit").click (function () {
+                document.getElementById('resultInfo').innerText="Result: Processing...";
+                document.getElementById('download').style.visibility="hidden";
+                document.getElementById('imgTrn').innerHTML="";
+                document.getElementById('imgTst').innerHTML="";
+                var mysel=document.getElementById("mlInfo");
+                var index=mysel.selectedIndex; 
+                var ml=mysel.options[index].value;
+                if (document.getElementById('file1').value.length==0 || document.getElementById('file2').value.length==0){
+                    document.getElementById('resultInfo').innerText="Result: Failed!\r Please upload both training and testing files.";
+                    return;
+                }
+                var trainFile = document.getElementById('file1').files[0].name;
+                var testFile = document.getElementById('file2').files[0].name;
+                console.log(trainFile);
+                var mlData = new FormData();
+                mlData.append('mltype',ml);
+                mlData.append('trainFile',trainFile);
+                mlData.append('testFile',testFile);
+                    $.ajax({
+                        url:"submit.php",
+                        type:"post",
+                        data:mlData,
+                        processData:false,
+                        contentType:false,
+                        cache:false, 
+                        success:function(data){  
+                            var xhr =new XMLHttpRequest();
+                            xhr.open("GET", "/results/accuracy.txt", false);
+                            xhr.onload = function() {
+                                if (xhr.status === 200 ) {  
+                                    var arr = xhr.responseText.split("\n");
+                                    document.getElementById('resultInfo').innerText="Result: Success!\r"+"Accuracy on training set: "+arr[0]+"\r Accuracy on test set: "+arr[1];
+                                }
+                            };
+                            xhr.send();
+
+                            var imgTrn =new XMLHttpRequest();
+                            imgTrn.open("GET", "/results/trn_cm.png",true);
+                            imgTrn.responseType='blob';                              
+                            imgTrn.onload = function() {
+                                if (imgTrn.status === 200 ) {
+                                    //console.log(xhr.status);
+                                    var blob = this.response;
+                                    var img = document.createElement("img");
+                                    img.setAttribute('height', '336px');
+                                    img.setAttribute('width', '448px');
+                                    img.onload = function(e) {
+                                        window.URL.revokeObjectURL(img.src); 
+                                    };
+                                    img.src = window.URL.createObjectURL(blob);
+                                    $("#imgTrn").html(img); 
+                                }
+                            };
+                            imgTrn.send();
+
+                            var imgTst =new XMLHttpRequest();
+                            imgTst.open("GET", "/results/trn_cm.png",true);
+                            imgTst.responseType='blob';                             
+                            imgTst.onload = function() {
+                                if (imgTst.status === 200 ) {
+                                    //console.log(xhr.status);
+                                    var blob = this.response;
+                                    var img = document.createElement("img");
+                                    img.setAttribute('height', '336px');
+                                    img.setAttribute('width', '448px');
+                                    img.onload = function(e) {
+                                        window.URL.revokeObjectURL(img.src); 
+                                    };
+                                    img.src = window.URL.createObjectURL(blob);
+                                    $("#imgTst").html(img); 
+                                }
+                            };
+                            imgTst.send();
+                                //callback(window.URL.createObjectURL(xhr.response));
+                            document.getElementById('download').style.visibility="visible";
+                        },
+                        error:(error) =>{
+                            console.log(JSON.stringify(error));
+                        }
+                    });
+            }) 
+        })
+    </script>
+<style type="text/css">
+h1{
+    font-size:42px;
+    background-image: linear-gradient(to right, red, orange, yellow, green, blue, green, yellow, orange, red, orange, yellow, green, blue, green, yellow, orange, red);    
+    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text;
+    -webkit-background-size: 200% 100%;
+    animation: bgp 60s infinite linear;
+}
+@-webkit-keyframes bgp{
+    0%{
+        background-position: 0 0;
+    }
+    100%{
+        background-position: -100% 0;
+    }
+}
+.myButton {
+    background:linear-gradient(to bottom, #529ef0 5%, #1e62d0 100%);
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#529ef0', endColorstr='#1e62d0',GradientType=0);
+    background-color:#529ef0;
+    -moz-border-radius:6px;
+    border-radius:6px;
+    border:1px solid #337fed;
+    display:inline-block;
+    cursor:pointer;
+    color:#ffffff;
+    font-family:Arial;
+    font-size:12px;
+    font-weight:bold;
+    padding: 4px 15px;
+    text-decoration:none;
+    text-shadow:0px 1px 0px #1570cd;
+}
+.myButton:hover {
+    background:-webkit-gradient(linear, left top, left bottom, color-stop(0.05, #1e62d0), color-stop(1, #529ef0));
+    background:-moz-linear-gradient(top, #1e62d0 5%, #529ef0 100%);
+    background:-webkit-linear-gradient(top, #1e62d0 5%, #529ef0 100%);
+    background:-o-linear-gradient(top, #1e62d0 5%, #529ef0 100%);
+    background:-ms-linear-gradient(top, #1e62d0 5%, #529ef0 100%);
+    background:linear-gradient(to bottom, #1e62d0 5%, #529ef0 100%);
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#1e62d0', endColorstr='#529ef0',GradientType=0);
+    background-color:#1e62d0;
+}
+.myButton:active {
+    position:relative;
+    top:1px;
+}
+body{
+    background-image: url("background.png");
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+
+</style>
+</body>
+</html>
